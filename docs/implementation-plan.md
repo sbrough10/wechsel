@@ -121,14 +121,14 @@ flowchart LR
 
 **Goal:** it stops feeling like a prototype.
 
-- TanStack Query defaults: `refetchInterval: 10_000`, `refetchOnWindowFocus`, no background refetch when hidden; "updated Xs ago" in the header.
+- TanStack Query defaults: `refetchInterval` from the single `POLL_INTERVAL_MS` constant (`src/client/lib/polling.ts`, currently 2s), `refetchOnWindowFocus`, no background refetch when hidden; a seconds-precise "updated Xs ago" indicator in the header that flips to a red "Offline" state (with a 2s request timeout and a connection-status hook) when the feed stops delivering.
 - Optimistic updates for assign and mark-done, with rollback and a toast on failure.
 - `sonner` toasts on every mutation, using the server's human-readable message.
 - Skeletons on first load only; no flicker on polls.
 - Responsive pass at 375px, dark mode via OS preference with a header override (system/light/dark), keyboard and focus pass, `aria-live` on the freshness indicator, status conveyed by text as well as colour.
 - Component tests for `IdentityGate` and `PrCard` permission rendering.
 
-**Done when:** an action in one browser profile appears in another within ~10 seconds without a refresh, and the manual accessibility and mobile checklists pass.
+**Done when:** an action in one browser profile appears in another within ~5 seconds without a refresh, cutting the network between two browser profiles makes the header show "Offline" with the age of the last update, and the manual accessibility and mobile checklists pass.
 
 ---
 

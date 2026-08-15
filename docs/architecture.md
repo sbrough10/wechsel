@@ -17,7 +17,7 @@ Companion to [product.md](product.md). This describes how the app is built and w
 
 - **`better-sqlite3` over `node:sqlite`.** Node 22 ships `node:sqlite` and Drizzle has a `drizzle-orm/node-sqlite` driver, but `drizzle-kit` still expects `better-sqlite3` to connect for migration commands. Using `better-sqlite3` keeps one driver for both the app and the tooling. Its synchronous API is a good fit for SQLite's single-writer model.
 - **Hono RPC over REST + hand-written types.** One `export type AppType = typeof routes` gives the client full request and response types. The cost is a discipline: **routes must be defined as a single chained expression**, because breaking the chain into separate statements loses the inferred types.
-- **Polling over WebSockets.** A 10 second `refetchInterval` plus refetch-on-focus is a few lines of TanStack Query config, has no connection lifecycle to manage, and is invisible at this scale.
+- **Polling over WebSockets.** A 2 second `refetchInterval` (from the single `POLL_INTERVAL_MS` constant in `src/client/lib/polling.ts`) plus refetch-on-focus is a few lines of TanStack Query config, has no connection lifecycle to manage, and is invisible at this scale.
 - **One process in production.** The built React bundle is served as static files by the same Hono server that serves `/api`, so deployment is "run one Node process next to one `.db` file".
 
 ## 2. Repository layout
@@ -65,7 +65,7 @@ A single package with three source roots. No monorepo: sharing types across pnpm
 flowchart LR
     subgraph browser [Browser]
         UI["React 19 + shadcn/ui"]
-        TQ["TanStack Query (10s poll)"]
+        TQ["TanStack Query (2s poll)"]
         HC["hc RPC client + x-member-id"]
         LS["localStorage: memberId"]
         UI --> TQ --> HC
@@ -266,7 +266,7 @@ Any multi-statement operation like this runs inside a single `better-sqlite3` tr
 ## 7. Frontend architecture
 
 - **Identity** lives in `localStorage` under one key (`wechsel.memberId`), read through `lib/identity.ts`. `App.tsx` renders `IdentityGate` when it is absent or when `GET /api/members/me` returns `404`.
-- **Three query keys** only: `['members']`, `['pull-requests']`, `['leaderboard']`. Query defaults are set once on the `QueryClient` in `main.tsx`: `refetchInterval: 10_000`, `refetchOnWindowFocus: true`, and `refetchIntervalInBackground: false` (so polling pauses while the tab is hidden). The header shows a live "Updated Xs ago" indicator (`aria-live="polite"`) fed by the pull-requests query's `dataUpdatedAt`.
+- **Three query keys** only: `['members']`, `['pull-requests']`, `['leaderboard']`. Query defaults are set once on the `QueryClient` in `main.tsx`: `refetchInterval: POLL_INTERVAL_MS` (`2_000`, defined in `src/client/lib/polling.ts`), `refetchOnWindowFocus: true`, and `refetchIntervalInBackground: false` (so polling pauses while the tab is hidden). The header shows a live "Updated Xs ago" indicator (`aria-live="polite"`) fed by the pull-requests query's `dataUpdatedAt`, seconds-precise so a stalled feed is obvious. The fetch wrapper in `lib/api.ts` aborts requests after 2s (kept at or below the poll interval) so a severed connection becomes a failure instead of hanging forever. A `useConnectionStatus` hook latches offline (browser `offline` events, a paused fetch, or repeated poll failures) until the next successful poll, and the header then switches to a red "Offline · last update Xs ago" instead of pretending updates are flowing.
 - **Mutations** invalidate the keys they affect; anything that changes credit invalidates both `['pull-requests']` and `['leaderboard']`. Assign and mark-done additionally get optimistic cache updates with rollback on failure so the buttons feel instant. Every mutation surfaces a `sonner` toast, using the server's human-readable message on error.
 - **Derived state is computed on the server** and shipped in `PullRequestView`. The client renders; it does not recompute status or progress. This keeps one implementation of the rules.
 - **Destructive actions** (delete PR, remove member) use one shared `ConfirmDialog` built on shadcn's `alert-dialog`, which names the specific target and describes the consequence. Cancel holds initial focus.

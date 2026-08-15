@@ -13,7 +13,7 @@ It is a **shared, trusted-network tool for one team** (expect 3-20 people). Ther
 These were agreed before writing this document and drive the rules below:
 
 - **Identity:** the member you pick is stored in browser `localStorage`; a "Switch user" control lets you change it. No passwords.
-- **Freshness:** clients poll the API roughly every 10 seconds and refetch when the window regains focus. No WebSockets.
+- **Freshness:** clients poll the API every 2 seconds (`POLL_INTERVAL_MS` in `src/client/lib/polling.ts`) and refetch when the window regains focus. No WebSockets.
 - **GitHub:** the app parses `owner/repo/number` out of the pasted URL for display. It makes **no** GitHub API calls, so it cannot auto-detect a real merge. The poster may add an optional short note.
 - **Role rules:** the poster of a PR may not review or acceptance-test their own PR. Anyone else may hold **both** roles on the same PR.
 - **Removed members:** removing a member is a soft delete. They stay on the leaderboard marked as removed, but cannot be picked as an identity or assigned to anything.
@@ -92,7 +92,7 @@ One page, three stacked sections, plus a header. No routing.
 
 ### 5.1 Header
 
-Current identity, "Switch user", a theme toggle (system / light / dark), and a subtle "updated Xs ago" indicator so people trust that the page is live.
+Current identity, "Switch user", a theme toggle (system / light / dark), and a subtle "updated Xs ago" indicator so people trust that the page is live. When the connection is lost the indicator stops pretending: it turns red and reads "Offline · last update Xs ago", showing the age of the last successful update until polling recovers.
 
 ### 5.2 Section 1 - Post a PR
 
@@ -172,7 +172,8 @@ Every rule is enforced on the server; the UI additionally hides actions the view
 ## 9. Non-functional requirements
 
 - **Scale:** one team, tens of PRs open, thousands of rows lifetime. A single SQLite file is comfortably sufficient.
-- **Freshness:** teammates' actions become visible within ~10 seconds without a manual refresh.
+- **Freshness:** teammates' actions become visible within ~2 seconds without a manual refresh.
+- **Resilience:** if the network connection is severed, the header's freshness indicator flips to an explicit "Offline" state (with the age of the last successful update) instead of silently pretending the page is live. A request timeout turns hangs into failures so disconnection is detected even when the browser still thinks it is online.
 - **Responsiveness:** every mutation reflects in the UI in under ~200ms locally.
 - **Layout:** usable from 375px wide up to a wide desktop; the three sections stack on mobile.
 - **Accessibility:** keyboard reachable actions, visible focus, destructive dialogs focus the safe option by default, colour is never the only signal of status.

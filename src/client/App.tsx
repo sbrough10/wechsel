@@ -8,6 +8,7 @@ import { PrList } from '@/components/PrList'
 import { TeamList } from '@/components/TeamList'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Toaster } from '@/components/ui/sonner'
+import { useConnectionStatus } from '@/hooks/useConnectionStatus'
 import { useMe } from '@/hooks/useMe'
 import { usePullRequests } from '@/hooks/usePullRequests'
 import { useColorScheme, type ColorScheme } from '@/lib/color-scheme'
@@ -36,12 +37,7 @@ export default function App() {
           }}
         />
       )}
-      <Toaster
-        theme={colorScheme.resolvedTheme}
-        position="bottom-right"
-        richColors
-        closeButton
-      />
+      <Toaster theme={colorScheme.resolvedTheme} position="bottom-right" richColors closeButton />
     </>
   )
 }
@@ -55,6 +51,7 @@ function Dashboard({
 }) {
   const me = useMe()
   const pullRequests = usePullRequests()
+  const connected = useConnectionStatus(pullRequests)
 
   useEffect(() => {
     if (me.isError) {
@@ -81,6 +78,7 @@ function Dashboard({
         member={member}
         onSwitchUser={onInvalidIdentity}
         lastUpdatedAt={pullRequests.dataUpdatedAt}
+        connected={connected}
         theme={colorScheme.preference}
         resolvedTheme={colorScheme.resolvedTheme}
         onThemeChange={colorScheme.setTheme}

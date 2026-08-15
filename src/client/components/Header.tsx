@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
+import { WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { timeAgo } from '@/lib/relative-time'
+import { timeAgoShort } from '@/lib/relative-time'
 import type { ResolvedTheme, ThemePreference } from '@/lib/color-scheme'
 import type { MemberView } from '@shared/types'
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
   const first = parts[0]?.[0] ?? ''
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : ''
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : ''
   return (first + last).toUpperCase()
 }
 
@@ -16,6 +17,7 @@ export function Header({
   member,
   onSwitchUser,
   lastUpdatedAt,
+  connected,
   theme,
   resolvedTheme,
   onThemeChange,
@@ -23,6 +25,7 @@ export function Header({
   member: MemberView
   onSwitchUser: () => void
   lastUpdatedAt?: number
+  connected: boolean
   theme: ThemePreference
   resolvedTheme: ResolvedTheme
   onThemeChange: (theme: ThemePreference) => void
@@ -41,11 +44,20 @@ export function Header({
         <div className="flex min-w-0 items-center justify-end gap-3">
           {lastUpdatedAt !== undefined && (
             <p
-              className="shrink-0 text-xs tabular-nums text-muted-foreground"
+              className={`shrink-0 text-xs tabular-nums ${
+                connected ? 'text-muted-foreground' : 'font-medium text-destructive'
+              }`}
               aria-live="polite"
               role="status"
             >
-              Updated {timeAgo(lastUpdatedAt, now)}
+              {connected ? (
+                <>Updated {timeAgoShort(lastUpdatedAt, now)}</>
+              ) : (
+                <>
+                  <WifiOff aria-hidden="true" className="mr-1 inline size-3.5 align-[-2px]" />
+                  Offline · last update {timeAgoShort(lastUpdatedAt, now)}
+                </>
+              )}
             </p>
           )}
           <div className="flex min-w-0 items-center gap-2">
@@ -60,11 +72,7 @@ export function Header({
           <Button variant="outline" size="sm" className="shrink-0" onClick={onSwitchUser}>
             Switch user
           </Button>
-          <ThemeToggle
-            theme={theme}
-            resolvedTheme={resolvedTheme}
-            onThemeChange={onThemeChange}
-          />
+          <ThemeToggle theme={theme} resolvedTheme={resolvedTheme} onThemeChange={onThemeChange} />
         </div>
       </div>
     </header>
