@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { timeAgo } from '@/lib/relative-time'
+import type { ResolvedTheme, ThemePreference } from '@/lib/color-scheme'
 import type { MemberView } from '@shared/types'
 
 function initials(name: string): string {
@@ -14,10 +16,16 @@ export function Header({
   member,
   onSwitchUser,
   lastUpdatedAt,
+  theme,
+  resolvedTheme,
+  onThemeChange,
 }: {
   member: MemberView
   onSwitchUser: () => void
   lastUpdatedAt?: number
+  theme: ThemePreference
+  resolvedTheme: ResolvedTheme
+  onThemeChange: (theme: ThemePreference) => void
 }) {
   const [now, setNow] = useState(() => Date.now())
 
@@ -52,6 +60,11 @@ export function Header({
           <Button variant="outline" size="sm" className="shrink-0" onClick={onSwitchUser}>
             Switch user
           </Button>
+          <ThemeToggle
+            theme={theme}
+            resolvedTheme={resolvedTheme}
+            onThemeChange={onThemeChange}
+          />
         </div>
       </div>
     </header>

@@ -46,7 +46,7 @@ A single package with three source roots. No monorepo: sharing types across pnpm
 │       ├── index.css           tailwind + shadcn theme tokens
 │       ├── lib/api.ts          hc<AppType> client, injects x-member-id
 │       ├── lib/identity.ts     localStorage read/write for the current member
-│       ├── lib/color-scheme.ts OS-preference dark mode
+│       ├── lib/color-scheme.ts theme preference (system/light/dark) + `.dark` class
 │       ├── test/setup.ts       jsdom polyfills + jest-dom matchers (vitest setupFiles)
 │       ├── hooks/              useMembers, usePullRequests, useLeaderboard, mutations
 │       ├── components/ui/      shadcn generated components (do not hand-edit)
@@ -270,9 +270,9 @@ Any multi-statement operation like this runs inside a single `better-sqlite3` tr
 - **Mutations** invalidate the keys they affect; anything that changes credit invalidates both `['pull-requests']` and `['leaderboard']`. Assign and mark-done additionally get optimistic cache updates with rollback on failure so the buttons feel instant. Every mutation surfaces a `sonner` toast, using the server's human-readable message on error.
 - **Derived state is computed on the server** and shipped in `PullRequestView`. The client renders; it does not recompute status or progress. This keeps one implementation of the rules.
 - **Destructive actions** (delete PR, remove member) use one shared `ConfirmDialog` built on shadcn's `alert-dialog`, which names the specific target and describes the consequence. Cancel holds initial focus.
-- **shadcn components** used: `button`, `input`, `label`, `card`, `badge`, `alert-dialog`, `dialog`, `command`, `popover`, `select`, `tabs`, `collapsible`, `separator`, `skeleton`, `tooltip`, `sonner`. Generated files in `components/ui/` are left unmodified so the CLI can update them.
+- **shadcn components** used: `button`, `input`, `label`, `card`, `badge`, `alert-dialog`, `dialog`, `command`, `dropdown-menu`, `popover`, `select`, `tabs`, `collapsible`, `separator`, `skeleton`, `tooltip`, `sonner`. Generated files in `components/ui/` are left unmodified so the CLI can update them.
 - **Feedback:** every mutation surfaces as a `sonner` toast using the server's human-readable message (success and error); loading states use skeletons on first load only, never on background polls.
-- **Appearance:** dark mode follows the OS preference. `lib/color-scheme.ts` (`useColorScheme`) toggles the `.dark` class on `<html>` from `prefers-color-scheme`, and `Toaster` is configured with `theme="system"`.
+- **Appearance:** dark mode follows the OS preference by default, with a manual override to force light or dark. `lib/color-scheme.ts` (`useColorScheme`) holds the preference in `localStorage` under `wechsel.theme` (one of `system`/`light`/`dark`) and toggles the `.dark` class on `<html>`; a header `dropdown-menu` exposes the three choices, and the `Toaster` follows the resolved theme. An inline script in `index.html` applies the saved preference before first paint to avoid a flash.
 
 ## 8. Validation
 

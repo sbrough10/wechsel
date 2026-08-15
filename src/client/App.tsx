@@ -7,38 +7,52 @@ import { PostPrForm } from '@/components/PostPrForm'
 import { PrList } from '@/components/PrList'
 import { TeamList } from '@/components/TeamList'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Toaster } from '@/components/ui/sonner'
 import { useMe } from '@/hooks/useMe'
 import { usePullRequests } from '@/hooks/usePullRequests'
-import { useColorScheme } from '@/lib/color-scheme'
+import { useColorScheme, type ColorScheme } from '@/lib/color-scheme'
 import { clearStoredMemberId, getStoredMemberId, storeMemberId } from '@/lib/identity'
 import type { MemberView } from '@shared/types'
 
 export default function App() {
-  useColorScheme()
+  const colorScheme = useColorScheme()
   const [memberId, setMemberId] = useState<string | null>(() => getStoredMemberId())
 
-  if (!memberId) {
-    return (
-      <IdentityGate
-        onSelected={(member: MemberView) => {
-          storeMemberId(member.id)
-          setMemberId(member.id)
-        }}
-      />
-    )
-  }
-
   return (
-    <Dashboard
-      onInvalidIdentity={() => {
-        clearStoredMemberId()
-        setMemberId(null)
-      }}
-    />
+    <>
+      {memberId ? (
+        <Dashboard
+          colorScheme={colorScheme}
+          onInvalidIdentity={() => {
+            clearStoredMemberId()
+            setMemberId(null)
+          }}
+        />
+      ) : (
+        <IdentityGate
+          onSelected={(member: MemberView) => {
+            storeMemberId(member.id)
+            setMemberId(member.id)
+          }}
+        />
+      )}
+      <Toaster
+        theme={colorScheme.resolvedTheme}
+        position="bottom-right"
+        richColors
+        closeButton
+      />
+    </>
   )
 }
 
-function Dashboard({ onInvalidIdentity }: { onInvalidIdentity: () => void }) {
+function Dashboard({
+  colorScheme,
+  onInvalidIdentity,
+}: {
+  colorScheme: ColorScheme
+  onInvalidIdentity: () => void
+}) {
   const me = useMe()
   const pullRequests = usePullRequests()
 
@@ -67,6 +81,9 @@ function Dashboard({ onInvalidIdentity }: { onInvalidIdentity: () => void }) {
         member={member}
         onSwitchUser={onInvalidIdentity}
         lastUpdatedAt={pullRequests.dataUpdatedAt}
+        theme={colorScheme.preference}
+        resolvedTheme={colorScheme.resolvedTheme}
+        onThemeChange={colorScheme.setTheme}
       />
       <main className="mx-auto w-full max-w-5xl space-y-6 p-4">
         <PostPrForm />

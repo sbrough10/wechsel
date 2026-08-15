@@ -92,7 +92,7 @@ One page, three stacked sections, plus a header. No routing.
 
 ### 5.1 Header
 
-Current identity, "Switch user", and a subtle "updated Xs ago" indicator so people trust that the page is live.
+Current identity, "Switch user", a theme toggle (system / light / dark), and a subtle "updated Xs ago" indicator so people trust that the page is live.
 
 ### 5.2 Section 1 - Post a PR
 
@@ -176,7 +176,7 @@ Every rule is enforced on the server; the UI additionally hides actions the view
 - **Responsiveness:** every mutation reflects in the UI in under ~200ms locally.
 - **Layout:** usable from 375px wide up to a wide desktop; the three sections stack on mobile.
 - **Accessibility:** keyboard reachable actions, visible focus, destructive dialogs focus the safe option by default, colour is never the only signal of status.
-- **Dark mode:** follows the OS preference.
+- **Dark mode:** follows the OS preference by default; a header toggle can force light or dark, remembered across visits.
 - **Durability:** the database is a single file that can be copied for backup; no data is destroyed by any normal user action except PR deletion.
 
 ## 10. Out of scope for v1

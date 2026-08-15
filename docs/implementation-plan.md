@@ -125,7 +125,7 @@ flowchart LR
 - Optimistic updates for assign and mark-done, with rollback and a toast on failure.
 - `sonner` toasts on every mutation, using the server's human-readable message.
 - Skeletons on first load only; no flicker on polls.
-- Responsive pass at 375px, dark mode via OS preference, keyboard and focus pass, `aria-live` on the freshness indicator, status conveyed by text as well as colour.
+- Responsive pass at 375px, dark mode via OS preference with a header override (system/light/dark), keyboard and focus pass, `aria-live` on the freshness indicator, status conveyed by text as well as colour.
 - Component tests for `IdentityGate` and `PrCard` permission rendering.
 
 **Done when:** an action in one browser profile appears in another within ~10 seconds without a refresh, and the manual accessibility and mobile checklists pass.
