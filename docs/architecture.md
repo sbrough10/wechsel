@@ -36,9 +36,8 @@ A single package with three source roots. No monorepo: sharing types across pnpm
 │   │   └── github-url.ts       parse + canonicalise a GitHub PR URL
 │   ├── server/
 │   │   ├── index.ts            node-server bootstrap, static serving in prod
-│   │   ├── app.ts              the single chained Hono app; exports AppType
+│   │   ├── app.ts              the single chained Hono app; thin handlers inline, exports AppType
 │   │   ├── middleware/actor.ts resolves x-member-id into the acting member
-│   │   ├── routes/             members.ts, pull-requests.ts, assignments.ts, leaderboard.ts
 │   │   ├── services/           business rules + permission checks (pure-ish, testable)
 │   │   ├── db/                 client.ts, schema.ts, migrate.ts, seed.ts
 │   │   └── errors.ts           AppError + code -> HTTP status mapping
@@ -186,17 +185,25 @@ Ranks and the two orderings are applied in the service layer, which keeps ties (
 All routes under `/api`, all JSON, all defined in one chained expression in `src/server/app.ts`:
 
 ```ts
-const routes = app
-  .get('/api/members', ...)
-  .post('/api/members', zValidator('json', createMemberSchema), ...)
-  // ...
-export type AppType = typeof routes
+export function createApp(db: Database) {
+  const app = new Hono<{ Variables }>()
+  app.onError(handleError)
+
+  const routes = app
+    .use('/api/members/me', actor(db))
+    .use('/api/members/:id', actor(db))
+    .get('/api/members', ...)
+    .post('/api/members', zValidator('json', createMemberSchema, validationHook), ...)
+    // ...
+  return routes
+}
+export type AppType = ReturnType<typeof createApp>
 ```
 
 - `GET /api/members` - active members; `?includeRemoved=true` for the team list.
 - `POST /api/members` `{ displayName }` - find-or-create by `name_key`; reactivates a removed match. Returns the member.
 - `DELETE /api/members/:id` - soft delete, drop all their assignments, keep all credit.
-- `GET /api/members/me` - validates the stored id; `404` tells the client to clear `localStorage` and show the identity gate.
+- `GET /api/members/me` - validates the stored id. The actor middleware rejects an unknown or removed id with `401 unknown_member`; the client treats that (or any `me` failure) as "clear `localStorage` and show the identity gate".
 - `GET /api/pull-requests` - `{ open: PullRequestView[], merged: PullRequestView[] }`, already sorted and with derived status.
 - `POST /api/pull-requests` `{ url, reviewersRequired, testersRequired, note? }`.
 - `PATCH /api/pull-requests/:id` `{ reviewersRequired?, testersRequired?, note? }` - poster only.
