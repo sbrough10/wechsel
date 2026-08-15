@@ -256,10 +256,13 @@ describe('pull requests API', () => {
     const old = await json<PullRequestView>(
       await postPr({ url: 'https://github.com/acme/core/pull/1', reviewersRequired: 1, testersRequired: 0 }, member.id),
     )
+    await new Promise((resolve) => setTimeout(resolve, 10))
     const recent = await json<PullRequestView>(
       await postPr({ url: 'https://github.com/acme/core/pull/2', reviewersRequired: 1, testersRequired: 0 }, member.id),
     )
+    await new Promise((resolve) => setTimeout(resolve, 10))
     await app.request(`/api/pull-requests/${old.id}/merge`, { method: 'POST', headers: { 'x-member-id': member.id } })
+    await new Promise((resolve) => setTimeout(resolve, 10))
     await app.request(`/api/pull-requests/${recent.id}/merge`, { method: 'POST', headers: { 'x-member-id': member.id } })
 
     const list = await json<PullRequestsResponse>(await getPrs())

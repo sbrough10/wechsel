@@ -6,19 +6,15 @@ import type {
   UpdatePullRequestInput,
 } from '../../shared/schemas.js'
 import type {
+  AssignmentView,
   PullRequestStatus,
   PullRequestView,
   PullRequestsResponse,
+  Role,
 } from '../../shared/types.js'
 import type { Database } from '../db/client.js'
 import { newId } from '../db/id.js'
-import {
-  assignments,
-  members,
-  pullRequests,
-  type PullRequest,
-  type Role,
-} from '../db/schema.js'
+import { assignments, members, pullRequests, type PullRequest } from '../db/schema.js'
 import { AppError } from '../errors.js'
 
 interface RoleState {
@@ -66,27 +62,42 @@ function assertPoster(pr: PullRequest, actorId: string): void {
   if (pr.postedBy !== actorId) throw new AppError('not_poster')
 }
 
-function roleStatesFor(db: Database, pr: PullRequest): RolesState {
+function roleStatesFor(pr: PullRequest, assignmentViews: AssignmentView[]): RolesState {
   const roles: RolesState = {
     review: emptyState(pr.reviewersRequired),
     acceptance: emptyState(pr.testersRequired),
   }
-  const rows = db
-    .select({ role: assignments.role, completedAt: assignments.completedAt })
-    .from(assignments)
-    .where(eq(assignments.pullRequestId, pr.id))
-    .all()
-  for (const row of rows) {
-    const state = roles[row.role as Role]
+  for (const view of assignmentViews) {
+    const state = roles[view.role]
     state.assigned += 1
-    if (row.completedAt) state.done += 1
+    if (view.completedAt) state.done += 1
   }
   return roles
 }
 
+function assignmentViewsFor(db: Database, pullRequestId: string): AssignmentView[] {
+  const rows = db
+    .select()
+    .from(assignments)
+    .where(eq(assignments.pullRequestId, pullRequestId))
+    .all()
+  return rows.map((row) => {
+    const member = db.select().from(members).where(eq(members.id, row.memberId)).get()
+    return {
+      id: row.id,
+      memberId: row.memberId,
+      memberName: member?.displayName ?? row.memberId,
+      role: row.role as Role,
+      assignedAt: row.assignedAt.getTime(),
+      completedAt: row.completedAt ? row.completedAt.getTime() : null,
+    }
+  })
+}
+
 export function toPullRequestView(db: Database, pr: PullRequest): PullRequestView {
   const poster = db.select().from(members).where(eq(members.id, pr.postedBy)).get()
-  const roles = roleStatesFor(db, pr)
+  const assignmentsForPr = assignmentViewsFor(db, pr.id)
+  const roles = roleStatesFor(pr, assignmentsForPr)
   return {
     id: pr.id,
     url: pr.url,
@@ -102,6 +113,7 @@ export function toPullRequestView(db: Database, pr: PullRequest): PullRequestVie
     createdAt: pr.createdAt.getTime(),
     updatedAt: pr.updatedAt.getTime(),
     status: deriveStatus(pr.mergedAt, roles),
+    assignments: assignmentsForPr,
   }
 }
 

@@ -42,3 +42,15 @@ export const updatePullRequestSchema = z.object({
 })
 
 export type UpdatePullRequestInput = z.infer<typeof updatePullRequestSchema>
+
+export const roleSchema = z.enum(['review', 'acceptance'], {
+  message: 'Pick a role',
+})
+
+export type Role = z.infer<typeof roleSchema>
+
+export const createAssignmentSchema = z.object({
+  role: roleSchema,
+})
+
+export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>

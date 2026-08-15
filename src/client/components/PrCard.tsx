@@ -14,6 +14,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { RequirementStepper } from '@/components/RequirementStepper'
+import { RoleTrack } from '@/components/RoleTrack'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useDeletePullRequest } from '@/hooks/useDeletePullRequest'
 import { useMergePullRequest, useUnmergePullRequest } from '@/hooks/useMergePullRequest'
@@ -59,50 +60,57 @@ export function PrCard({
         </CardAction>
       </CardHeader>
 
-      <CardContent className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Posted by <span className="font-medium text-foreground">{pr.postedByName}</span>{' '}
-          {timeAgo(pr.createdAt)}
-        </p>
-        <div className="flex items-center gap-2">
-          {!merged && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pending}
-              onClick={() => merge.mutate(pr.id)}
-            >
-              <GitMerge aria-hidden="true" />
-              Mark merged
-            </Button>
-          )}
-          {merged && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pending}
-              onClick={() => unmerge.mutate(pr.id)}
-            >
-              <Undo2 aria-hidden="true" />
-              Undo merge
-            </Button>
-          )}
-          <ConfirmDialog
-            title={`Delete ${prLabel(pr)}?`}
-            description={
-              <>
-                This removes the post and its completion credit stops counting on the leaderboard.
-                This can&rsquo;t be undone from the app.
-              </>
-            }
-            confirmLabel="Delete PR"
-            onConfirm={() => remove.mutate(pr.id)}
-            trigger={
-              <Button variant="ghost" size="sm" disabled={pending}>
-                Delete
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Posted by <span className="font-medium text-foreground">{pr.postedByName}</span>{' '}
+            {timeAgo(pr.createdAt)}
+          </p>
+          <div className="flex items-center gap-2">
+            {!merged && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                onClick={() => merge.mutate(pr.id)}
+              >
+                <GitMerge aria-hidden="true" />
+                Mark merged
               </Button>
-            }
-          />
+            )}
+            {merged && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                onClick={() => unmerge.mutate(pr.id)}
+              >
+                <Undo2 aria-hidden="true" />
+                Undo merge
+              </Button>
+            )}
+            <ConfirmDialog
+              title={`Delete ${prLabel(pr)}?`}
+              description={
+                <>
+                  This removes the post and its completion credit stops counting on the leaderboard.
+                  This can&rsquo;t be undone from the app.
+                </>
+              }
+              confirmLabel="Delete PR"
+              onConfirm={() => remove.mutate(pr.id)}
+              trigger={
+                <Button variant="ghost" size="sm" disabled={pending}>
+                  Delete
+                </Button>
+              }
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RoleTrack pr={pr} viewer={viewer} role="review" />
+          <RoleTrack pr={pr} viewer={viewer} role="acceptance" />
         </div>
       </CardContent>
 

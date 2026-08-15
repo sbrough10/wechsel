@@ -6,7 +6,18 @@ export interface MemberView {
   removedAt: number | null
 }
 
+export type Role = 'review' | 'acceptance'
+
 export type PullRequestStatus = 'needs_volunteers' | 'in_progress' | 'ready' | 'merged'
+
+export interface AssignmentView {
+  id: string
+  memberId: string
+  memberName: string
+  role: Role
+  assignedAt: number
+  completedAt: number | null
+}
 
 export interface PullRequestView {
   id: string
@@ -23,6 +34,7 @@ export interface PullRequestView {
   createdAt: number
   updatedAt: number
   status: PullRequestStatus
+  assignments: AssignmentView[]
 }
 
 export interface PullRequestsResponse {
