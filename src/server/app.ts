@@ -17,6 +17,7 @@ import {
   unassign,
   undoComplete,
 } from './services/assignments.js'
+import { getLeaderboard } from './services/leaderboard.js'
 import { findOrCreate, listMembers, removeMember, toMemberView } from './services/members.js'
 import {
   createPullRequest,
@@ -52,6 +53,7 @@ export function createApp(db: Database) {
     .get('/api/members/me', (c) => c.json({ member: toMemberView(c.get('member')) }))
     .delete('/api/members/:id', (c) => c.json(removeMember(db, c.req.param('id'))))
     .get('/api/pull-requests', (c) => c.json(listPullRequests(db)))
+    .get('/api/leaderboard', (c) => c.json(getLeaderboard(db)))
     .post(
       '/api/pull-requests',
       actorMiddleware(db),

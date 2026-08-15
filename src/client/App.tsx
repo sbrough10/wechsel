@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Header } from '@/components/Header'
 import { IdentityGate } from '@/components/IdentityGate'
+import { Leaderboard } from '@/components/Leaderboard'
 import { MergedPrList } from '@/components/MergedPrList'
 import { PostPrForm } from '@/components/PostPrForm'
 import { PrList } from '@/components/PrList'
+import { TeamList } from '@/components/TeamList'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMe } from '@/hooks/useMe'
 import { usePullRequests } from '@/hooks/usePullRequests'
@@ -83,6 +85,20 @@ function Dashboard({ onInvalidIdentity }: { onInvalidIdentity: () => void }) {
           ) : (
             <MergedPrList prs={pullRequests.data?.merged ?? []} viewer={member} />
           )}
+        </section>
+
+        <section className="space-y-3" aria-labelledby="leaderboard-heading">
+          <h2 id="leaderboard-heading" className="text-lg font-semibold tracking-tight">
+            Leaderboard
+          </h2>
+          <Leaderboard viewerId={member.id} />
+        </section>
+
+        <section className="space-y-3" aria-labelledby="team-heading">
+          <h2 id="team-heading" className="text-lg font-semibold tracking-tight">
+            Team
+          </h2>
+          <TeamList viewerId={member.id} />
         </section>
       </main>
     </div>

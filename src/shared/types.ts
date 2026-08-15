@@ -42,6 +42,19 @@ export interface PullRequestsResponse {
   merged: PullRequestView[]
 }
 
+export interface LeaderboardRow {
+  id: string
+  displayName: string
+  removedAt: number | null
+  count: number
+  rank: number
+}
+
+export interface LeaderboardResponse {
+  reviews: LeaderboardRow[]
+  acceptance: LeaderboardRow[]
+}
+
 export function prLabel(pr: PullRequestView): string {
   return `${pr.owner}/${pr.repo}#${pr.number}`
 }
