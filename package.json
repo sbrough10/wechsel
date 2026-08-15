@@ -7,7 +7,7 @@
   "packageManager": "pnpm@10.6.2",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"tsx watch src/server/index.ts\"",
-    "build": "vite build && tsc -p tsconfig.server.json",
+    "build": "rm -rf dist && vite build && tsc -p tsconfig.build.json",
     "start": "node dist/server/server/index.js",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run",

@@ -286,8 +286,8 @@ Any multi-statement operation like this runs inside a single `better-sqlite3` tr
 
 ## 9. Configuration
 
-- `PORT` (default `8787`), `DB_FILE` (default `./data/app.db`), `NODE_ENV`.
-- No secrets, so no `.env` is required to run; a `.env.example` documents the two knobs.
+- `PORT` (default `8787`), `DB_FILE` (default `./data/app.db`), `STATIC_DIR` (default `./dist/client`), `NODE_ENV`.
+- No secrets, so no `.env` is required to run; a `.env.example` documents the knobs.
 
 ## 10. Build and run
 
@@ -297,7 +297,9 @@ Any multi-statement operation like this runs inside a single `better-sqlite3` tr
 - `pnpm start` - runs migrations, then serves `/api` and `dist/client` from one process.
 - `pnpm test`, `pnpm lint`, `pnpm typecheck`.
 
-In production the server mounts `serveStatic` for `dist/client` and falls back to `index.html` for unknown non-`/api` paths.
+In production the server mounts `serveStatic` for `dist/client` and falls back to `index.html` for unknown non-`/api` paths, with a JSON `not_found` envelope for unknown `/api` routes. The static mount is wired in `src/server/index.ts`, outside `createApp`, so the API-only `AppType` is unchanged and tests keep exercising `app.request()` without touching disk.
+
+A `Dockerfile` produces a production image with the database on a mounted volume; a systemd unit and pm2 recipe are documented in the `README.md` for running on a small internal box.
 
 ## 11. Testing strategy
 

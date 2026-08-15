@@ -1,0 +1,8 @@
+node_modules
+dist
+data
+.git
+*.log
+.pnpm-store
+.devcontainer
+docs
