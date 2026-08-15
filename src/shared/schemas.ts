@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { parseGitHubPrUrl } from './github-url.js'
 
 export const createMemberSchema = z.object({
   displayName: z
@@ -14,3 +15,30 @@ export type CreateMemberInput = z.infer<typeof createMemberSchema>
 export function toNameKey(displayName: string): string {
   return displayName.trim().toLowerCase().replace(/\s+/g, ' ')
 }
+
+const requirementsField = z
+  .number({ message: 'Pick a number between 0 and 10' })
+  .int({ message: 'Must be a whole number' })
+  .min(0, 'Must be 0 or more')
+  .max(10, 'Must be 10 or fewer')
+
+export const createPullRequestSchema = z.object({
+  url: z
+    .string()
+    .trim()
+    .min(1, 'A GitHub pull request URL is required')
+    .refine((url) => parseGitHubPrUrl(url) !== null, 'That is not a valid GitHub pull request URL'),
+  reviewersRequired: requirementsField,
+  testersRequired: requirementsField,
+  note: z.string().trim().max(200, 'Note must be 200 characters or fewer').optional(),
+})
+
+export type CreatePullRequestInput = z.infer<typeof createPullRequestSchema>
+
+export const updatePullRequestSchema = z.object({
+  reviewersRequired: requirementsField.optional(),
+  testersRequired: requirementsField.optional(),
+  note: z.string().trim().max(200, 'Note must be 200 characters or fewer').optional(),
+})
+
+export type UpdatePullRequestInput = z.infer<typeof updatePullRequestSchema>

@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Header } from '@/components/Header'
 import { IdentityGate } from '@/components/IdentityGate'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { MergedPrList } from '@/components/MergedPrList'
+import { PostPrForm } from '@/components/PostPrForm'
+import { PrList } from '@/components/PrList'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMe } from '@/hooks/useMe'
+import { usePullRequests } from '@/hooks/usePullRequests'
 import { clearStoredMemberId, getStoredMemberId, storeMemberId } from '@/lib/identity'
 import type { MemberView } from '@shared/types'
 
@@ -33,6 +36,7 @@ export default function App() {
 
 function Dashboard({ onInvalidIdentity }: { onInvalidIdentity: () => void }) {
   const me = useMe()
+  const pullRequests = usePullRequests()
 
   useEffect(() => {
     if (me.isError) {
@@ -51,23 +55,35 @@ function Dashboard({ onInvalidIdentity }: { onInvalidIdentity: () => void }) {
 
   if (!me.data) return null
 
+  const { member } = me.data
+
   return (
     <div className="min-h-screen">
-      <Header member={me.data.member} onSwitchUser={onInvalidIdentity} />
-      <main className="mx-auto w-full max-w-5xl p-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Welcome, {me.data.member.displayName}.</CardTitle>
-            <CardDescription>
-              Identity is working &mdash; the PR board arrives in the next phase.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              You can reload this page and skip the gate, or switch user from the header.
-            </p>
-          </CardContent>
-        </Card>
+      <Header member={member} onSwitchUser={onInvalidIdentity} />
+      <main className="mx-auto w-full max-w-5xl space-y-6 p-4">
+        <PostPrForm />
+
+        <section className="space-y-3" aria-labelledby="open-prs-heading">
+          <h2 id="open-prs-heading" className="text-lg font-semibold tracking-tight">
+            Open PRs
+          </h2>
+          {pullRequests.isPending ? (
+            <div className="space-y-3">
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          ) : (
+            <PrList prs={pullRequests.data?.open ?? []} viewer={member} />
+          )}
+        </section>
+
+        <section className="space-y-3" aria-label="Recently merged">
+          {pullRequests.isPending ? (
+            <Skeleton className="h-10 w-48" />
+          ) : (
+            <MergedPrList prs={pullRequests.data?.merged ?? []} viewer={member} />
+          )}
+        </section>
       </main>
     </div>
   )
