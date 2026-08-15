@@ -1,54 +1,74 @@
 import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { api } from '@/lib/api'
-
-type Health = { ok: boolean; message: string }
+import { Header } from '@/components/Header'
+import { IdentityGate } from '@/components/IdentityGate'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useMe } from '@/hooks/useMe'
+import { clearStoredMemberId, getStoredMemberId, storeMemberId } from '@/lib/identity'
+import type { MemberView } from '@shared/types'
 
 export default function App() {
-  const [health, setHealth] = useState<Health | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [memberId, setMemberId] = useState<string | null>(() => getStoredMemberId())
 
-  const check = () => {
-    api.api.health
-      .$get()
-      .then((res) => res.json())
-      .then((data) => {
-        setHealth(data)
-        setError(null)
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+  if (!memberId) {
+    return (
+      <IdentityGate
+        onSelected={(member: MemberView) => {
+          storeMemberId(member.id)
+          setMemberId(member.id)
+        }}
+      />
+    )
   }
 
+  return (
+    <Dashboard
+      onInvalidIdentity={() => {
+        clearStoredMemberId()
+        setMemberId(null)
+      }}
+    />
+  )
+}
+
+function Dashboard({ onInvalidIdentity }: { onInvalidIdentity: () => void }) {
+  const me = useMe()
+
   useEffect(() => {
-    check()
-  }, [])
+    if (me.isError) {
+      onInvalidIdentity()
+    }
+  }, [me.isError, onInvalidIdentity])
+
+  if (me.isPending) {
+    return (
+      <div className="mx-auto w-full max-w-5xl space-y-4 p-4">
+        <Skeleton className="h-14 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    )
+  }
+
+  if (!me.data) return null
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Wechsel</CardTitle>
-          <CardDescription>Phase 0 scaffold &mdash; health check</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error ? (
-            <p className="text-sm font-medium text-destructive">{error}</p>
-          ) : (
-            <p className="font-mono text-lg">{health ? health.message : 'loading…'}</p>
-          )}
-        </CardContent>
-        <CardFooter>
-          <Button onClick={check}>Re-check</Button>
-        </CardFooter>
-      </Card>
-    </main>
+    <div className="min-h-screen">
+      <Header member={me.data.member} onSwitchUser={onInvalidIdentity} />
+      <main className="mx-auto w-full max-w-5xl p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Welcome, {me.data.member.displayName}.</CardTitle>
+            <CardDescription>
+              Identity is working &mdash; the PR board arrives in the next phase.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              You can reload this page and skip the gate, or switch user from the header.
+            </p>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
   )
 }
