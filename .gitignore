@@ -3,3 +3,5 @@ dist/
 data/*.db*
 .worktrees/
 .DS_Store
+.devcontainer
+.pnpm-store

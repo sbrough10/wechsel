@@ -1,0 +1,4 @@
+- Always use git worktrees when implementing changes
+- Do not commit changes to git without asking how it should be done, first
+- Always refer to files in `docs` for project context
+- Whenever making changes that conflict with information in `docs`, update the docs to reflect those changes
