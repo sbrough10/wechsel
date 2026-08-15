@@ -1,6 +1,6 @@
-# Review Rota - Product Requirements
+# Wechsel - Product Requirements
 
-_Working name: **Review Rota**. Rename freely; nothing in the architecture depends on it._
+_App name: **Wechsel**. "Review Rota" was the working name; the confirmed name is Wechsel._
 
 ## 1. Purpose
 
@@ -71,7 +71,7 @@ The poster of a PR can, at any time before or after it is merged:
 ### 4.5 Merge
 
 - Any member can **Mark merged**. The PR leaves the open list and appears in a collapsed **Recently merged** section (newest first, capped at the 20 most recent by default with a "show all" toggle).
-- Merged PRs are read-only apart from **Undo merge**, which returns the PR to the open list.
+- Merged PRs are read-only apart from **Undo merge** (which returns the PR to the open list) and the poster's ongoing controls from [section 4.4](#44-the-poster-keeps-a-pr-honest): they may still clear assignments and change requirements.
 - Completion credit on merged PRs still counts on the leaderboard.
 
 ### 4.6 Delete a PR post

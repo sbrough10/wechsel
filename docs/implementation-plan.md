@@ -1,4 +1,4 @@
-# Review Rota - Phased Implementation Plan
+# Wechsel - Phased Implementation Plan
 
 Seven phases, each ending in something demonstrable. Requirements come from [product.md](product.md); structure and naming come from [architecture.md](architecture.md).
 

@@ -1,4 +1,4 @@
-# Review Rota - Architecture
+# Wechsel - Architecture
 
 Companion to [product.md](product.md). This describes how the app is built and why.
 
@@ -256,7 +256,7 @@ Any multi-statement operation like this runs inside a single `better-sqlite3` tr
 
 ## 7. Frontend architecture
 
-- **Identity** lives in `localStorage` under one key (`reviewRota.memberId`), read through `lib/identity.ts`. `App.tsx` renders `IdentityGate` when it is absent or when `GET /api/members/me` returns `404`.
+- **Identity** lives in `localStorage` under one key (`wechsel.memberId`), read through `lib/identity.ts`. `App.tsx` renders `IdentityGate` when it is absent or when `GET /api/members/me` returns `404`.
 - **Three query keys** only: `['members']`, `['pull-requests']`, `['leaderboard']`, each with `refetchInterval: 10_000` and `refetchOnWindowFocus: true`. Background refetching pauses when the tab is hidden.
 - **Mutations** invalidate the keys they affect; anything that changes credit invalidates both `['pull-requests']` and `['leaderboard']`. Assign and mark-done additionally get optimistic updates so the buttons feel instant.
 - **Derived state is computed on the server** and shipped in `PullRequestView`. The client renders; it does not recompute status or progress. This keeps one implementation of the rules.
