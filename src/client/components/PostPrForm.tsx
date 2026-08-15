@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { createPullRequestSchema } from '@shared/schemas'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,13 +26,6 @@ export function PostPrForm() {
   const [testersRequired, setTestersRequired] = useState(0)
   const [note, setNote] = useState('')
   const [errors, setErrors] = useState<FormErrors>({})
-  const [posted, setPosted] = useState(false)
-
-  useEffect(() => {
-    if (!posted) return
-    const timer = setTimeout(() => setPosted(false), 4000)
-    return () => clearTimeout(timer)
-  }, [posted])
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -46,7 +39,6 @@ export function PostPrForm() {
       const issue = (field: string) =>
         result.error.issues.find((i) => i.path[0] === field)?.message
       setErrors({ url: issue('url'), note: issue('note') })
-      setPosted(false)
       return
     }
     setErrors({})
@@ -56,7 +48,6 @@ export function PostPrForm() {
         setReviewersRequired(1)
         setTestersRequired(0)
         setNote('')
-        setPosted(true)
       },
     })
   }
@@ -129,18 +120,6 @@ export function PostPrForm() {
               </p>
             )}
           </div>
-
-          {createPr.isError && (
-            <p className="text-sm font-medium text-destructive" role="alert">
-              {createPr.error instanceof Error ? createPr.error.message : 'Could not post the PR.'}
-            </p>
-          )}
-
-          {posted && (
-            <p className="text-sm font-medium text-emerald-600" role="status" aria-live="polite">
-              Posted.
-            </p>
-          )}
 
           <Button type="submit" disabled={createPr.isPending} className="w-full sm:w-auto">
             {createPr.isPending ? 'Posting…' : 'Post pull request'}

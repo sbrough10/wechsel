@@ -10,7 +10,5 @@ export function useLeaderboard() {
       if (!res.ok) throw new Error(await apiErrorMessage(res))
       return res.json()
     },
-    refetchInterval: 10_000,
-    refetchOnWindowFocus: true,
   })
 }

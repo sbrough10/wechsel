@@ -58,7 +58,12 @@ export function RoleTrack({
                 }
               >
                 {assignment.memberName}
-                {isDone && <Check aria-hidden="true" className="size-3" />}
+                {isDone ? (
+                  <>
+                    <Check aria-hidden="true" className="size-3" />
+                    <span className="sr-only">done</span>
+                  </>
+                ) : null}
                 {isPoster && (
                   <button
                     type="button"

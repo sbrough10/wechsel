@@ -111,14 +111,6 @@ export function IdentityGate({ onSelected }: { onSelected: (member: MemberView) 
               )}
             </CommandList>
           </Command>
-
-          {createMember.isError && (
-            <p className="mt-3 text-sm font-medium text-destructive" role="alert">
-              {createMember.error instanceof Error
-                ? createMember.error.message
-                : 'Could not join with that name.'}
-            </p>
-          )}
         </CardContent>
       </Card>
     </main>

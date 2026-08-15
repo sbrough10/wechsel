@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import type { MemberView } from '@shared/types'
 import { api, apiErrorMessage } from '@/lib/api'
 
@@ -16,6 +17,8 @@ export function useCreateMember() {
         if (previous.some((m) => m.id === member.id)) return previous
         return [...previous, member]
       })
+      toast.success(`You are now ${member.displayName}.`)
     },
+    onError: (error) => toast.error(error.message),
   })
 }

@@ -46,6 +46,8 @@ A single package with three source roots. No monorepo: sharing types across pnpm
 │       ├── index.css           tailwind + shadcn theme tokens
 │       ├── lib/api.ts          hc<AppType> client, injects x-member-id
 │       ├── lib/identity.ts     localStorage read/write for the current member
+│       ├── lib/color-scheme.ts OS-preference dark mode
+│       ├── test/setup.ts       jsdom polyfills + jest-dom matchers (vitest setupFiles)
 │       ├── hooks/              useMembers, usePullRequests, useLeaderboard, mutations
 │       ├── components/ui/      shadcn generated components (do not hand-edit)
 │       └── components/         IdentityGate, PostPrForm, PrList, PrCard, RoleTrack,
@@ -264,12 +266,13 @@ Any multi-statement operation like this runs inside a single `better-sqlite3` tr
 ## 7. Frontend architecture
 
 - **Identity** lives in `localStorage` under one key (`wechsel.memberId`), read through `lib/identity.ts`. `App.tsx` renders `IdentityGate` when it is absent or when `GET /api/members/me` returns `404`.
-- **Three query keys** only: `['members']`, `['pull-requests']`, `['leaderboard']`, each with `refetchInterval: 10_000` and `refetchOnWindowFocus: true`. Background refetching pauses when the tab is hidden.
-- **Mutations** invalidate the keys they affect; anything that changes credit invalidates both `['pull-requests']` and `['leaderboard']`. Assign and mark-done additionally get optimistic updates so the buttons feel instant.
+- **Three query keys** only: `['members']`, `['pull-requests']`, `['leaderboard']`. Query defaults are set once on the `QueryClient` in `main.tsx`: `refetchInterval: 10_000`, `refetchOnWindowFocus: true`, and `refetchIntervalInBackground: false` (so polling pauses while the tab is hidden). The header shows a live "Updated Xs ago" indicator (`aria-live="polite"`) fed by the pull-requests query's `dataUpdatedAt`.
+- **Mutations** invalidate the keys they affect; anything that changes credit invalidates both `['pull-requests']` and `['leaderboard']`. Assign and mark-done additionally get optimistic cache updates with rollback on failure so the buttons feel instant. Every mutation surfaces a `sonner` toast, using the server's human-readable message on error.
 - **Derived state is computed on the server** and shipped in `PullRequestView`. The client renders; it does not recompute status or progress. This keeps one implementation of the rules.
 - **Destructive actions** (delete PR, remove member) use one shared `ConfirmDialog` built on shadcn's `alert-dialog`, which names the specific target and describes the consequence. Cancel holds initial focus.
 - **shadcn components** used: `button`, `input`, `label`, `card`, `badge`, `alert-dialog`, `dialog`, `command`, `popover`, `select`, `tabs`, `collapsible`, `separator`, `skeleton`, `tooltip`, `sonner`. Generated files in `components/ui/` are left unmodified so the CLI can update them.
-- **Feedback:** every mutation error surfaces as a `sonner` toast using the server's human-readable message; loading states use skeletons on first load only, never on background polls.
+- **Feedback:** every mutation surfaces as a `sonner` toast using the server's human-readable message (success and error); loading states use skeletons on first load only, never on background polls.
+- **Appearance:** dark mode follows the OS preference. `lib/color-scheme.ts` (`useColorScheme`) toggles the `.dark` class on `<html>` from `prefers-color-scheme`, and `Toaster` is configured with `theme="system"`.
 
 ## 8. Validation
 
@@ -300,7 +303,7 @@ In production the server mounts `serveStatic` for `dist/client` and falls back t
 
 - **Service and route tests (the bulk).** Vitest with a fresh `:memory:` database per test file, migrations applied in `beforeEach`, exercised through `app.request()`. These cover the rules that matter: poster cannot self-assign; clearing an assignment preserves credit; removing a member drops assignments and preserves credit; leaderboard excludes deleted PRs; duplicate URL rejected; requirement changes are poster-only; undo-done removes exactly one credit row.
 - **Unit tests** for `parseGitHubPrUrl` (valid forms, weird suffixes, non-PR URLs) and for the status/ranking derivation.
-- **Component tests** for `IdentityGate` and `PrCard` permission rendering with Testing Library.
+- **Component tests** for `IdentityGate` and `PrCard` permission rendering with Testing Library, running under jsdom (per-file `@vitest-environment jsdom`) with vitest `globals` enabled and a shared `src/client/test/setup.ts` that registers the jest-dom matchers and the DOM APIs jsdom lacks (`ResizeObserver`, `scrollIntoView`).
 - **Manual smoke checklist** per phase, in [implementation-plan.md](implementation-plan.md); two browser profiles side by side to verify polling.
 
 ## 12. Security posture

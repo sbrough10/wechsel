@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { timeAgo } from '@/lib/relative-time'
 import type { MemberView } from '@shared/types'
 
 function initials(name: string): string {
@@ -11,25 +13,43 @@ function initials(name: string): string {
 export function Header({
   member,
   onSwitchUser,
+  lastUpdatedAt,
 }: {
   member: MemberView
   onSwitchUser: () => void
+  lastUpdatedAt?: number
 }) {
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
   return (
     <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
-      <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-4 px-4">
+      <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-3 px-4">
         <span className="text-lg font-semibold tracking-tight">Wechsel</span>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center justify-end gap-3">
+          {lastUpdatedAt !== undefined && (
+            <p
+              className="shrink-0 text-xs tabular-nums text-muted-foreground"
+              aria-live="polite"
+              role="status"
+            >
+              Updated {timeAgo(lastUpdatedAt, now)}
+            </p>
+          )}
+          <div className="flex min-w-0 items-center gap-2">
             <span
               aria-hidden="true"
-              className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground"
             >
               {initials(member.displayName)}
             </span>
-            <span className="text-sm font-medium">{member.displayName}</span>
+            <span className="hidden text-sm font-medium sm:inline">{member.displayName}</span>
           </div>
-          <Button variant="outline" size="sm" onClick={onSwitchUser}>
+          <Button variant="outline" size="sm" className="shrink-0" onClick={onSwitchUser}>
             Switch user
           </Button>
         </div>

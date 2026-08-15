@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import type { CreatePullRequestInput } from '@shared/schemas'
 import type { PullRequestView } from '@shared/types'
 import { api, apiErrorMessage } from '@/lib/api'
@@ -11,8 +12,10 @@ export function useCreatePullRequest() {
       if (!res.ok) throw new Error(await apiErrorMessage(res))
       return res.json()
     },
-    onSuccess: () => {
+    onSuccess: (pr) => {
       queryClient.invalidateQueries({ queryKey: ['pull-requests'] })
+      toast.success(`Posted ${pr.owner}/${pr.repo}#${pr.number}.`)
     },
+    onError: (error) => toast.error(error.message),
   })
 }

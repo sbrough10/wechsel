@@ -37,8 +37,6 @@ export function PrCard({
 
   const isPoster = pr.postedBy === viewer.id
   const pending = update.isPending || merge.isPending || unmerge.isPending || remove.isPending
-  const actionError =
-    update.error?.message ?? merge.error?.message ?? unmerge.error?.message ?? remove.error?.message
 
   return (
     <Card>
@@ -134,11 +132,6 @@ export function PrCard({
               onChange={(value) => update.mutate({ id: pr.id, testersRequired: value })}
             />
           </div>
-          {actionError && (
-            <p className="text-sm font-medium text-destructive" role="alert">
-              {actionError}
-            </p>
-          )}
         </CardFooter>
       )}
     </Card>

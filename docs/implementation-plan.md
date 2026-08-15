@@ -139,7 +139,7 @@ flowchart LR
 - `pnpm build` (client to `dist/client`, server to `dist/server`); production static serving with SPA fallback for non-`/api` routes.
 - `pnpm start` runs migrations before listening.
 - `README.md`: what it is, the no-auth warning, setup, the scripts table, where the database file lives, how to back it up (copy `data/app.db*`), and how to restore.
-- Optional: a `Dockerfile` with the database on a mounted volume, and a systemd/pm2 note for a small internal box.
+- A `Dockerfile` with the database on a mounted volume, and a systemd/pm2 note for a small internal box.
 
 **Done when:** a clean clone reaches a working app with `pnpm install && pnpm build && pnpm start`, on an empty database, following only the README.
 

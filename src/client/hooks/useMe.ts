@@ -15,7 +15,5 @@ export function useMe() {
       return res.json()
     },
     retry: false,
-    refetchInterval: 10_000,
-    refetchOnWindowFocus: true,
   })
 }
