@@ -11,6 +11,7 @@ primary_region = "iad"
   force_https = true
   internal_port = 8787
   min_machines_running = 0
+  processes = ["app"]
 
 [[mounts]]
   auto_extend_size_increment = "1GB"
