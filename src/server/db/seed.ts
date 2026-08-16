@@ -1,4 +1,4 @@
-import { createDatabase } from './client.js'
+import type { Database } from './client.js'
 import { assignments, completions, members, pullRequests } from './schema.js'
 
 const now = Date.now()
@@ -148,15 +148,15 @@ const seededCompletions = [
   ),
 ]
 
-const db = createDatabase(process.env.DB_FILE ?? './data/app.db')
+export async function seed(db: Database) {
+  await db.transaction(async (tx) => {
+    await tx.insert(members).values([ada, grace, linus, alan])
+    await tx.insert(pullRequests).values([pr1, pr2, pr3])
+    await tx.insert(assignments).values(seededAssignments)
+    await tx.insert(completions).values(seededCompletions)
+  })
 
-db.transaction((tx) => {
-  tx.insert(members).values([ada, grace, linus, alan]).run()
-  tx.insert(pullRequests).values([pr1, pr2, pr3]).run()
-  tx.insert(assignments).values(seededAssignments).run()
-  tx.insert(completions).values(seededCompletions).run()
-})
-
-console.log(
-  `[seed] 4 members, 3 pull requests, ${seededAssignments.length} assignments, ${seededCompletions.length} completion credits`,
-)
+  console.log(
+    `[seed] 4 members, 3 pull requests, ${seededAssignments.length} assignments, ${seededCompletions.length} completion credits`,
+  )
+}

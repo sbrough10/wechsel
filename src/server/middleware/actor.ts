@@ -12,7 +12,7 @@ export function actorMiddleware(db: Database) {
     if (!memberId) {
       throw new AppError('unknown_member', 'Pick an identity first.')
     }
-    const member = getMemberById(db, memberId)
+    const member = await getMemberById(db, memberId)
     if (!member || member.removedAt) {
       throw new AppError('unknown_member', 'That identity no longer exists.')
     }

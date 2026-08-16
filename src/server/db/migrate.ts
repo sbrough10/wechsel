@@ -1,27 +1,20 @@
-import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import type { Database } from './client.js'
-import { createDatabase } from './client.js'
 
-const DEFAULT_MIGRATIONS_FOLDER = resolve(process.cwd(), 'drizzle')
+const MIGRATION_FILE = resolve(process.cwd(), 'drizzle/0000_chunky_outlaw_kid.sql')
 
-export function runMigrations(
-  db: Database,
-  migrationsFolder: string = DEFAULT_MIGRATIONS_FOLDER,
-): void {
-  migrate(db, { migrationsFolder })
-}
-
-function isDirectRun(): boolean {
-  const entry = process.argv[1]
-  if (!entry) return false
-  return resolve(entry) === fileURLToPath(import.meta.url)
-}
-
-if (isDirectRun()) {
-  const dbFile = process.env.DB_FILE ?? './data/app.db'
-  const db = createDatabase(dbFile)
-  runMigrations(db)
-  console.log(`[migrate] applied pending migrations to ${dbFile}`)
+export function runMigrations(db: Database) {
+  const sql = readFileSync(MIGRATION_FILE, 'utf-8')
+  const statements = sql
+    .split('--> statement-breakpoint')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  for (const stmt of statements) {
+    const idempotent = stmt
+      .replace(/CREATE TABLE `(\w+)`/g, 'CREATE TABLE IF NOT EXISTS `$1`')
+      .replace(/CREATE UNIQUE INDEX `(\w+)`/g, 'CREATE UNIQUE INDEX IF NOT EXISTS `$1`')
+      .replace(/CREATE INDEX `(\w+)`/g, 'CREATE INDEX IF NOT EXISTS `$1`')
+    db.run(idempotent)
+  }
 }

@@ -1,8 +1,7 @@
 node_modules
 dist
 data
+.wrangler
+.dev.vars
+*.db*
 .git
-*.log
-.pnpm-store
-.devcontainer
-docs

@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "wechsel",
+  "main": "./src/server/platforms/cloudflare.ts",
+  "compatibility_date": "2026-08-16",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": "./dist/client"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "wechsel-db",
+      "database_id": "c574016e-c980-4468-8c9f-119895453d9f"
+    }
+  ]
+}

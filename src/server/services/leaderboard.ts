@@ -35,8 +35,8 @@ function rankedRows(rows: { id: string; displayName: string; removedAt: Date | n
   })
 }
 
-export function getLeaderboard(db: Database): LeaderboardResponse {
-  const rows = db
+export async function getLeaderboard(db: Database): Promise<LeaderboardResponse> {
+  const rows = await db
     .select({
       id: members.id,
       displayName: members.displayName,
@@ -56,7 +56,7 @@ export function getLeaderboard(db: Database): LeaderboardResponse {
     )
     .all()
 
-  const counts = rows as LeaderboardCounts[]
+  const counts = rows as unknown as LeaderboardCounts[]
   return {
     reviews: rankedRows(
       counts.map((row) => ({ ...row, count: row.reviewsCompleted })),

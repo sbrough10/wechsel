@@ -16,12 +16,12 @@ export function toMemberView(member: Member): MemberView {
   }
 }
 
-export function getMemberById(db: Database, id: string): Member | undefined {
+export async function getMemberById(db: Database, id: string): Promise<Member | undefined> {
   return db.select().from(members).where(eq(members.id, id)).get()
 }
 
-export function listMembers(db: Database, includeRemoved = false): MemberView[] {
-  const rows = db
+export async function listMembers(db: Database, includeRemoved = false): Promise<MemberView[]> {
+  const rows = await db
     .select()
     .from(members)
     .where(includeRemoved ? undefined : isNull(members.removedAt))
@@ -30,12 +30,12 @@ export function listMembers(db: Database, includeRemoved = false): MemberView[] 
   return rows.map(toMemberView)
 }
 
-export function findOrCreate(db: Database, displayName: string): MemberView {
+export async function findOrCreate(db: Database, displayName: string): Promise<MemberView> {
   const nameKey = toNameKey(displayName)
-  const existing = db.select().from(members).where(eq(members.nameKey, nameKey)).get()
+  const existing = await db.select().from(members).where(eq(members.nameKey, nameKey)).get()
   if (existing) {
     if (existing.removedAt) {
-      db.update(members).set({ removedAt: null }).where(eq(members.id, existing.id)).run()
+      await db.update(members).set({ removedAt: null }).where(eq(members.id, existing.id))
     }
     return toMemberView({ ...existing, removedAt: null })
   }
@@ -47,20 +47,18 @@ export function findOrCreate(db: Database, displayName: string): MemberView {
     createdAt: new Date(),
     removedAt: null,
   }
-  db.insert(members).values(created).run()
+  await db.insert(members).values(created)
   return toMemberView(created)
 }
 
-export function removeMember(db: Database, id: string): MemberView {
-  const member = db.select().from(members).where(eq(members.id, id)).get()
+export async function removeMember(db: Database, id: string): Promise<MemberView> {
+  const member = await db.select().from(members).where(eq(members.id, id)).get()
   if (!member) {
     throw new AppError('not_found', 'No member with that id.')
   }
 
-  db.transaction((tx) => {
-    tx.update(members).set({ removedAt: new Date() }).where(eq(members.id, id)).run()
-    tx.delete(assignments).where(eq(assignments.memberId, id)).run()
-  })
+  await db.update(members).set({ removedAt: new Date() }).where(eq(members.id, id))
+  await db.delete(assignments).where(eq(assignments.memberId, id))
 
   return toMemberView({ ...member, removedAt: new Date() })
 }

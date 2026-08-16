@@ -1,4 +1,3 @@
-import { SqliteError } from 'better-sqlite3'
 import { and, eq, isNull } from 'drizzle-orm'
 import { parseGitHubPrUrl } from '../../shared/github-url.js'
 import type {
@@ -48,8 +47,8 @@ const statusRank: Record<PullRequestStatus, number> = {
   merged: 3,
 }
 
-export function getLivePullRequest(db: Database, id: string): PullRequest {
-  const pr = db
+export async function getLivePullRequest(db: Database, id: string): Promise<PullRequest> {
+  const pr = await db
     .select()
     .from(pullRequests)
     .where(and(eq(pullRequests.id, id), isNull(pullRequests.deletedAt)))
@@ -75,28 +74,30 @@ function roleStatesFor(pr: PullRequest, assignmentViews: AssignmentView[]): Role
   return roles
 }
 
-function assignmentViewsFor(db: Database, pullRequestId: string): AssignmentView[] {
-  const rows = db
+async function assignmentViewsFor(db: Database, pullRequestId: string): Promise<AssignmentView[]> {
+  const rows = await db
     .select()
     .from(assignments)
     .where(eq(assignments.pullRequestId, pullRequestId))
     .all()
-  return rows.map((row) => {
-    const member = db.select().from(members).where(eq(members.id, row.memberId)).get()
-    return {
+  const views: AssignmentView[] = []
+  for (const row of rows) {
+    const member = await db.select().from(members).where(eq(members.id, row.memberId)).get()
+    views.push({
       id: row.id,
       memberId: row.memberId,
       memberName: member?.displayName ?? row.memberId,
       role: row.role as Role,
       assignedAt: row.assignedAt.getTime(),
       completedAt: row.completedAt ? row.completedAt.getTime() : null,
-    }
-  })
+    })
+  }
+  return views
 }
 
-export function toPullRequestView(db: Database, pr: PullRequest): PullRequestView {
-  const poster = db.select().from(members).where(eq(members.id, pr.postedBy)).get()
-  const assignmentsForPr = assignmentViewsFor(db, pr.id)
+export async function toPullRequestView(db: Database, pr: PullRequest): Promise<PullRequestView> {
+  const poster = await db.select().from(members).where(eq(members.id, pr.postedBy)).get()
+  const assignmentsForPr = await assignmentViewsFor(db, pr.id)
   const roles = roleStatesFor(pr, assignmentsForPr)
   return {
     id: pr.id,
@@ -117,8 +118,8 @@ export function toPullRequestView(db: Database, pr: PullRequest): PullRequestVie
   }
 }
 
-export function listPullRequests(db: Database): PullRequestsResponse {
-  const prRows = db
+export async function listPullRequests(db: Database): Promise<PullRequestsResponse> {
+  const prRows = await db
     .select()
     .from(pullRequests)
     .where(isNull(pullRequests.deletedAt))
@@ -128,7 +129,7 @@ export function listPullRequests(db: Database): PullRequestsResponse {
   const open: PullRequestView[] = []
   const merged: PullRequestView[] = []
   for (const pr of prRows) {
-    const view = toPullRequestView(db, pr)
+    const view = await toPullRequestView(db, pr)
     if (view.mergedAt) {
       merged.push(view)
     } else {
@@ -144,15 +145,15 @@ export function listPullRequests(db: Database): PullRequestsResponse {
   return { open, merged }
 }
 
-export function createPullRequest(
+export async function createPullRequest(
   db: Database,
   input: CreatePullRequestInput,
   actorId: string,
-): PullRequestView {
+): Promise<PullRequestView> {
   const parsed = parseGitHubPrUrl(input.url)
   if (!parsed) throw new AppError('invalid_pr_url')
 
-  const existing = db
+  const existing = await db
     .select()
     .from(pullRequests)
     .where(and(eq(pullRequests.url, parsed.canonicalUrl), isNull(pullRequests.deletedAt)))
@@ -177,9 +178,9 @@ export function createPullRequest(
   }
 
   try {
-    db.insert(pullRequests).values(pr).run()
+    await db.insert(pullRequests).values(pr)
   } catch (err) {
-    if (err instanceof SqliteError && err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    if (isUniqueConstraintError(err)) {
       throw new AppError('duplicate_pr')
     }
     throw err
@@ -188,13 +189,13 @@ export function createPullRequest(
   return toPullRequestView(db, pr)
 }
 
-export function updatePullRequest(
+export async function updatePullRequest(
   db: Database,
   id: string,
   input: UpdatePullRequestInput,
   actorId: string,
-): PullRequestView {
-  const pr = getLivePullRequest(db, id)
+): Promise<PullRequestView> {
+  const pr = await getLivePullRequest(db, id)
   assertPoster(pr, actorId)
 
   const patch: Partial<PullRequest> = { updatedAt: new Date() }
@@ -202,38 +203,43 @@ export function updatePullRequest(
   if (input.testersRequired !== undefined) patch.testersRequired = input.testersRequired
   if (input.note !== undefined) patch.note = input.note.trim() || null
 
-  db.update(pullRequests).set(patch).where(eq(pullRequests.id, id)).run()
+  await db.update(pullRequests).set(patch).where(eq(pullRequests.id, id))
   return toPullRequestView(db, { ...pr, ...patch })
 }
 
-export function mergePullRequest(db: Database, id: string): PullRequestView {
-  const pr = getLivePullRequest(db, id)
+export async function mergePullRequest(db: Database, id: string): Promise<PullRequestView> {
+  const pr = await getLivePullRequest(db, id)
   if (pr.mergedAt) return toPullRequestView(db, pr)
   const now = new Date()
-  db.update(pullRequests)
+  await db.update(pullRequests)
     .set({ mergedAt: now, updatedAt: now })
     .where(eq(pullRequests.id, id))
-    .run()
   return toPullRequestView(db, { ...pr, mergedAt: now, updatedAt: now })
 }
 
-export function unmergePullRequest(db: Database, id: string): PullRequestView {
-  const pr = getLivePullRequest(db, id)
+export async function unmergePullRequest(db: Database, id: string): Promise<PullRequestView> {
+  const pr = await getLivePullRequest(db, id)
   if (!pr.mergedAt) return toPullRequestView(db, pr)
   const now = new Date()
-  db.update(pullRequests)
+  await db.update(pullRequests)
     .set({ mergedAt: null, updatedAt: now })
     .where(eq(pullRequests.id, id))
-    .run()
   return toPullRequestView(db, { ...pr, mergedAt: null, updatedAt: now })
 }
 
-export function softDeletePullRequest(db: Database, id: string): PullRequestView {
-  const pr = getLivePullRequest(db, id)
+export async function softDeletePullRequest(db: Database, id: string): Promise<PullRequestView> {
+  const pr = await getLivePullRequest(db, id)
   const now = new Date()
-  db.update(pullRequests)
+  await db.update(pullRequests)
     .set({ deletedAt: now, updatedAt: now })
     .where(eq(pullRequests.id, id))
-    .run()
   return toPullRequestView(db, { ...pr, deletedAt: now, updatedAt: now })
+}
+
+function isUniqueConstraintError(err: unknown): boolean {
+  if (err instanceof Error) {
+    const msg = err.message?.toLowerCase() ?? ''
+    return msg.includes('unique') || msg.includes('constraint')
+  }
+  return false
 }

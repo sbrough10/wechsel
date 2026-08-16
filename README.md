@@ -4,8 +4,10 @@ A small internal web app for one team (3-20 people): post a PR that needs review
 and/or acceptance testing, teammates volunteer for the roles, and a leaderboard
 makes the invisible work of reviewing visible.
 
-- **Stack:** TypeScript (strict), Hono + `@hono/node-server`, SQLite via Drizzle
-  ORM, React 19 + Vite, Tailwind CSS v4, shadcn/ui, TanStack Query.
+- **Stack:** TypeScript (strict), Hono, SQLite via Drizzle ORM, React 19 +
+  Vite, Tailwind CSS v4, shadcn/ui, TanStack Query.
+- **Platforms:** Runs on Cloudflare Workers (D1 database) or Node.js (file-based
+  SQLite). Same code, same schema, different entry points.
 - **Docs:** [architecture](docs/architecture.md), [product](docs/product.md),
   [implementation plan](docs/implementation-plan.md).
 
@@ -28,44 +30,65 @@ posture and the migration path if that ever changes.
 pnpm install
 ```
 
-Run migrations against a fresh database (also done automatically by `pnpm start`):
+## Choose your platform
 
-```sh
-pnpm db:migrate
-```
+Wechsel runs on two platforms. Pick the one that fits your deployment:
 
-Optionally load demo data:
-
-```sh
-pnpm db:seed
-```
+| | Cloudflare Workers | Node.js (VPS / local) |
+|---|---|---|
+| **Database** | D1 (managed SQLite) | File-based SQLite (`./data/app.db`) |
+| **Dev command** | `pnpm dev` | `pnpm dev:node` |
+| **Prod command** | `wrangler deploy` | `pnpm start:node` |
+| **Migrations** | `wrangler d1 execute` (manual) | Auto-run on startup |
 
 ## Commands
 
+### Development
+
 | Script            | What it does                                                      |
 | ----------------- | ----------------------------------------------------------------- |
-| `pnpm dev`        | Vite on `5173` + Hono API on `8787` (via `tsx watch`), together   |
-| `pnpm build`      | Client to `dist/client`, server to `dist/server`                  |
-| `pnpm start`      | Run the built server (migrations first), serves UI + `/api`       |
-| `pnpm typecheck`  | `tsc --noEmit` for client and server projects                     |
+| `pnpm dev`        | Vite + Cloudflare workerd with HMR (for Cloudflare deployment)    |
+| `pnpm dev:node`   | Node.js server on `:8787` with auto-reload (for VPS / local)      |
+
+### Build and run
+
+| Script              | What it does                                                      |
+| ------------------- | ----------------------------------------------------------------- |
+| `pnpm build`        | Builds client assets to `dist/`                                   |
+| `pnpm start:node`   | Runs the production Node.js server (migrations + static files)    |
+| `pnpm preview`      | Previews Cloudflare production build locally via wrangler         |
+
+### Database
+
+| Script               | What it does                                                      |
+| -------------------- | ----------------------------------------------------------------- |
+| `pnpm db:generate`   | Generate a new migration from `src/server/db/schema.ts`           |
+| `pnpm db:migrate:local`  | Apply D1 migrations locally (Cloudflare only)                |
+| `pnpm db:migrate:remote` | Apply D1 migrations to production (Cloudflare only)           |
+| `pnpm db:seed:local` | Seed demo data into the local database                            |
+
+### Quality
+
+| Script            | What it does                                                      |
+| ----------------- | ----------------------------------------------------------------- |
+| `pnpm typecheck`  | `tsc --noEmit` for client and server                              |
 | `pnpm test`       | Vitest                                                            |
 | `pnpm lint`       | ESLint                                                            |
-| `pnpm db:generate`| Create a new migration from `src/server/db/schema.ts`             |
-| `pnpm db:migrate` | Apply pending migrations in `drizzle/`                            |
-| `pnpm db:seed`    | Load demo members and PRs                                         |
 
-## Run in production
+## Run in production locally (Node.js)
+
+The simplest way to run the app on a single machine:
 
 ```sh
+pnpm install
 pnpm build
-pnpm start
+pnpm start:node
 ```
 
-`pnpm start` runs pending migrations, then serves both the API (`/api`) and the
-built client (`dist/client`) from one process. The default port is `8787`; the
-app is reachable at `http://localhost:8787`.
+The server starts on `http://localhost:8787`. Migrations run automatically on
+startup. The SQLite database is created at `./data/app.db`.
 
-## Configuration
+### Configuration
 
 All variables are optional; defaults are shown:
 
@@ -73,10 +96,58 @@ All variables are optional; defaults are shown:
 | ------------- | ----------------- | ----------------------------------- |
 | `PORT`        | `8787`            | HTTP port                           |
 | `DB_FILE`     | `./data/app.db`   | SQLite database file                |
-| `STATIC_DIR`  | `./dist/client`   | Built client assets (SPA served)    |
 
 There are no secrets, so no `.env` is required. `.env.example` documents the
 knobs.
+
+## Run on a VPS
+
+### systemd
+
+Install the built app somewhere like `/opt/wechsel` (`pnpm install && pnpm build`
+inside it), create a dedicated user, and add:
+
+```ini
+[Unit]
+Description=Wechsel
+After=network.target
+
+[Service]
+Type=simple
+User=wechsel
+WorkingDirectory=/opt/wechsel
+ExecStart=/usr/bin/node dist/server/server/platforms/node.js
+Environment=PORT=8787
+Environment=DB_FILE=/opt/wechsel/data/app.db
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then `systemctl enable --now wechsel`.
+
+### pm2
+
+```sh
+pm2 start dist/server/server/platforms/node.js --name wechsel --cwd /opt/wechsel
+pm2 save
+pm2 startup   # follow the printed command so it survives reboots
+```
+
+### Docker
+
+Build and run with the database on a mounted volume so it survives container
+replacements:
+
+```sh
+docker build -t wechsel .
+docker run -d --name wechsel -p 8787:8787 -v "$PWD/data:/app/data" wechsel
+```
+
+The container stores the database at `/app/data/app.db`. Back it up by copying
+that volume exactly as described above.
 
 ## The database
 
@@ -99,68 +170,37 @@ sidecars), and start again:
 ```sh
 cp /somewhere/safe/app.db data/app.db
 rm -f data/app.db-shm data/app.db-wal
-pnpm start
+pnpm start:node
 ```
 
 Nothing except deleting a PR is ever truly destroyed at the database level, and
 the file is trivially copyable, so nightly `cron` copies of `data/app.db` are a
 complete backup strategy.
 
-## Run on a small internal box
-
-### systemd
-
-Install the built app somewhere like `/opt/wechsel` (`pnpm install && pnpm build`
-inside it), create a dedicated user, and add:
-
-```ini
-[Unit]
-Description=Wechsel
-After=network.target
-
-[Service]
-Type=simple
-User=wechsel
-WorkingDirectory=/opt/wechsel
-ExecStart=/usr/bin/node dist/server/server/index.js
-Environment=PORT=8787
-Environment=DB_FILE=/opt/wechsel/data/app.db
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Then `systemctl enable --now wechsel`.
-
-### pm2
+## Cloudflare Workers deployment
 
 ```sh
-pm2 start dist/server/server/index.js --name wechsel --cwd /opt/wechsel
-pm2 save
-pm2 startup   # follow the printed command so it survives reboots
+wrangler login
+wrangler d1 migrations apply wechsel-db --remote
+wrangler deploy
 ```
 
-## Docker
-
-A production image is defined in `Dockerfile`. Build and run with the database on
-a mounted volume so it survives container replacements:
-
-```sh
-docker build -t wechsel .
-docker run -d --name wechsel -p 8787:8787 -v "$PWD/data:/app/data" wechsel
-```
-
-The container stores the database at `/app/data/app.db` (`DB_FILE` is set inside
-the image); back it up by copying that volume exactly as described above.
+The Cloudflare deployment uses D1 for the database. Static assets are served
+via Workers Assets. See `wrangler.jsonc` for the D1 binding configuration.
 
 ## Layout
 
 ```text
 src/
 ├── shared/    imported by BOTH client and server (schemas, types, helpers)
-├── server/    Hono app, services, db
+├── server/
+│   ├── app.ts                 Hono app (platform-agnostic)
+│   ├── platforms/             entry points (one per deployment target)
+│   │   ├── cloudflare.ts      Cloudflare Workers adapter
+│   │   └── node.ts            Node.js adapter
+│   ├── services/              business rules + permissions
+│   ├── db/                    schema, migrations, connection factories
+│   └── middleware/            actor resolution
 └── client/    React app (Vite root)
 ```
 

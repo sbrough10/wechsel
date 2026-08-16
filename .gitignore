@@ -1,6 +1,8 @@
 node_modules/
 dist/
-data/*.db*
+data/
+.wrangler/
+.dev.vars
 .DS_Store
 .devcontainer
 .pnpm-store

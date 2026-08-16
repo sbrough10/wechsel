@@ -5,20 +5,22 @@ Companion to [product.md](product.md). This describes how the app is built and w
 ## 1. Stack
 
 - **Language:** TypeScript everywhere, `strict: true` (required for Hono's RPC type inference to work).
-- **Runtime:** Node.js 22 LTS (local machine is on v22.23.1). Package manager: pnpm (10.6 available locally).
-- **Backend:** [Hono](https://hono.dev) on `@hono/node-server`, with `@hono/zod-validator` for request validation.
-- **Database:** SQLite via **Drizzle ORM** with the **`better-sqlite3`** driver. `drizzle-kit` generates and applies SQL migrations.
+- **Runtime:** Platform-adaptive — runs on Cloudflare Workers (D1) or Node.js (file-based SQLite). A thin platform adapter in `src/server/platforms/` selects the runtime; all application code is platform-agnostic.
+- **Backend:** [Hono](https://hono.dev), with `@hono/zod-validator` for request validation. Runs identically on both runtimes.
+- **Database:** SQLite via **Drizzle ORM**. Cloudflare D1 in production Workers; `better-sqlite3` for Node.js and tests. Same schema, same queries, different drivers.
 - **Frontend:** React 19 + Vite, **Tailwind CSS v4** (via `@tailwindcss/vite`) and **shadcn/ui** components.
 - **Data fetching:** TanStack Query over Hono's `hc` RPC client, so the frontend gets end-to-end types with no code generation and no OpenAPI step.
 - **Validation:** Zod schemas defined once in `src/shared` and used by both the server validators and the client forms.
-- **Tests:** Vitest. Server tests drive the Hono app in-process via `app.request()` against a fresh in-memory database.
+- **Tests:** Vitest. Server tests drive the Hono app in-process via `app.request()` against a fresh in-memory `better-sqlite3` database.
+- **Deploy:** Cloudflare (`wrangler deploy`) or Node.js (`pnpm build && pnpm start:node`).
 
 ### Why these choices
 
-- **`better-sqlite3` over `node:sqlite`.** Node 22 ships `node:sqlite` and Drizzle has a `drizzle-orm/node-sqlite` driver, but `drizzle-kit` still expects `better-sqlite3` to connect for migration commands. Using `better-sqlite3` keeps one driver for both the app and the tooling. Its synchronous API is a good fit for SQLite's single-writer model.
+- **Platform adapters over a single fixed runtime.** The `createApp(db)` pattern accepts any compatible Drizzle instance, so the same application code runs on Cloudflare Workers, a VPS, or a local machine. Platform adapters (`src/server/platforms/`) are the only files that touch runtime-specific APIs; everything else is portable.
+- **SQLite everywhere.** D1 is SQLite-compatible, so the same Drizzle schema, migrations, and queries work in both production (D1) and tests (better-sqlite3). No ORM dialect switches, no schema drift.
 - **Hono RPC over REST + hand-written types.** One `export type AppType = typeof routes` gives the client full request and response types. The cost is a discipline: **routes must be defined as a single chained expression**, because breaking the chain into separate statements loses the inferred types.
 - **Polling over WebSockets.** A 2 second `refetchInterval` (from the single `POLL_INTERVAL_MS` constant in `src/client/lib/polling.ts`) plus refetch-on-focus is a few lines of TanStack Query config, has no connection lifecycle to manage, and is invisible at this scale.
-- **One process in production.** The built React bundle is served as static files by the same Hono server that serves `/api`, so deployment is "run one Node process next to one `.db` file".
+- **Service code returns `Promise`s.** All service functions are async, so they work with both D1 (async driver) and `better-sqlite3` (sync driver wrapped in async calls). Transactions are avoided because `better-sqlite3`'s Drizzle adapter rejects async transaction callbacks while D1 requires them; individual statements are used instead, which is safe given SQLite's single-writer model and the Workers request isolation.
 
 ## 2. Repository layout
 
@@ -27,7 +29,6 @@ A single package with three source roots. No monorepo: sharing types across pnpm
 ```text
 .
 ├── docs/                       product.md, architecture.md, implementation-plan.md
-├── data/                       app.db (gitignored)
 ├── drizzle/                    generated SQL migrations + snapshots
 ├── src/
 │   ├── shared/                 imported by BOTH client and server
@@ -35,11 +36,13 @@ A single package with three source roots. No monorepo: sharing types across pnpm
 │   │   ├── types.ts            view models (PullRequestView, LeaderboardRow, ...)
 │   │   └── github-url.ts       parse + canonicalise a GitHub PR URL
 │   ├── server/
-│   │   ├── index.ts            node-server bootstrap, static serving in prod
 │   │   ├── app.ts              the single chained Hono app; thin handlers inline, exports AppType
+│   │   ├── platforms/          platform adapters (one file per deployment target)
+│   │   │   ├── cloudflare.ts   Cloudflare Workers entry (D1 binding -> drizzle -> createApp)
+│   │   │   └── node.ts         Node.js entry (better-sqlite3 file -> createApp)
 │   │   ├── middleware/actor.ts resolves x-member-id into the acting member
 │   │   ├── services/           business rules + permission checks (pure-ish, testable)
-│   │   ├── db/                 client.ts, schema.ts, migrate.ts, seed.ts
+│   │   ├── db/                 client.ts, schema.ts, migrate.ts, seed.ts, seed-run.ts, test-utils.ts
 │   │   └── errors.ts           AppError + code -> HTTP status mapping
 │   └── client/
 │       ├── main.tsx, App.tsx
@@ -52,14 +55,15 @@ A single package with three source roots. No monorepo: sharing types across pnpm
 │       ├── components/ui/      shadcn generated components (do not hand-edit)
 │       └── components/         IdentityGate, PostPrForm, PrList, PrCard, RoleTrack,
 │                               MergedPrList, Leaderboard, TeamList, ConfirmDialog
-├── components.json             shadcn config (css: src/client/index.css, alias @ -> src/client)
-├── drizzle.config.ts
-├── vite.config.ts              root: src/client, alias @ and @shared, /api proxy in dev
+├── wrangler.jsonc              Cloudflare Workers config (D1 binding, worker entry)
+├── vite.config.ts              cloudflare() plugin, alias @ and @shared
 ├── tsconfig.json / tsconfig.app.json / tsconfig.server.json
 └── package.json
 ```
 
 ## 3. Runtime shape
+
+The app runs on two platforms through a shared adapter pattern. All business logic lives in `createApp(db)` and the services it calls; only the entry point and database driver differ.
 
 ```mermaid
 flowchart LR
@@ -71,21 +75,62 @@ flowchart LR
         UI --> TQ --> HC
         LS -.-> HC
     end
-    subgraph node ["Node process (single)"]
-        Static["static: dist/client (prod only)"]
-        API["Hono app /api"]
-        Actor["actor middleware"]
-        Svc["services: rules + permissions"]
-        Drizzle["Drizzle ORM"]
-        API --> Actor --> Svc --> Drizzle
+
+    subgraph cloudflare ["Cloudflare Workers"]
+        Static1["Workers Assets"]
+        API1["Hono /api"]
+        API1 --> Svc1["services"]
+        Svc1 --> Drizzle1["drizzle-orm/d1"]
     end
-    DB[("SQLite file data/app.db")]
-    HC -->|"HTTP JSON"| API
-    UI -.->|"page load"| Static
-    Drizzle --> DB
+
+    subgraph node ["Node.js"]
+        Static2["serveStatic (dist/client)"]
+        API2["Hono /api"]
+        API2 --> Svc2["services"]
+        Svc2 --> Drizzle2["drizzle-orm/better-sqlite3"]
+    end
+
+    DB1[("D1 Database")]
+    DB2[("SQLite file data/app.db")]
+
+    HC -->|"HTTP"| API1
+    HC -->|"HTTP"| API2
+    UI -.->|"static"| Static1
+    UI -.->|"static"| Static2
+    Drizzle1 --> DB1
+    Drizzle2 --> DB2
 ```
 
-In development Vite serves the UI on `5173` and proxies `/api` to the Hono server on `8787`, so the RPC base URL is just `/api` in both environments.
+**Cloudflare path** (`pnpm dev` / `wrangler deploy`): The Cloudflare Vite plugin runs the Worker inside workerd during local development. The entry point `platforms/cloudflare.ts` creates a Drizzle instance from the D1 binding and passes it to `createApp`.
+
+**Node.js path** (`pnpm dev:node` / `pnpm start:node`): The entry point `platforms/node.ts` opens a `better-sqlite3` file database, wraps it with `createSqliteDatabase()`, runs migrations, and serves static files via `@hono/node-server`.
+
+### 3.1 Platform adapters
+
+The adapter pattern keeps platform-specific code in a single file per deployment target. All adapters follow the same shape:
+
+1. Create a database connection (D1 binding, better-sqlite3 file, etc.)
+2. Wrap it with Drizzle ORM to produce a `Database` instance
+3. Call `createApp(db)` and serve the resulting Hono app
+
+```ts
+// Example: adding a new platform adapter
+import { createApp } from '../app.js'
+import { createSqliteDatabase } from '../db/client.js'
+
+const db = createSqliteDatabase(/* your SQLite connection */)
+const app = createApp(db)
+// Serve with your platform's HTTP server
+```
+
+**Current adapters:**
+
+| Adapter | File | Database | HTTP server |
+|---------|------|----------|-------------|
+| Cloudflare Workers | `platforms/cloudflare.ts` | D1 via `drizzle-orm/d1` | Workers runtime |
+| Node.js | `platforms/node.ts` | better-sqlite3 file | `@hono/node-server` |
+
+**To add a new platform** (e.g., Bun, Deno, AWS Lambda): create a new file in `platforms/`, import the appropriate SQLite driver, wrap it with Drizzle, and call `createApp(db)`. The shared application code requires no changes.
 
 ## 4. Data model
 
@@ -163,7 +208,11 @@ Notes:
 
 ### 4.2 Connection setup
 
-On startup, before serving: `PRAGMA journal_mode = WAL`, `PRAGMA foreign_keys = ON`, `PRAGMA busy_timeout = 5000`, then run pending migrations. WAL matters because polling clients read constantly while someone writes.
+**Cloudflare Workers (D1):** D1 handles WAL, foreign keys, and busy timeouts automatically. The entry point `platforms/cloudflare.ts` creates a Drizzle instance from the `env.DB` D1 binding and passes it to `createApp`.
+
+**Node.js (better-sqlite3):** The entry point `platforms/node.ts` opens a file-based database (default `./data/app.db`), sets `PRAGMA journal_mode = WAL`, `PRAGMA foreign_keys = ON`, `PRAGMA busy_timeout = 5000`, wraps it with `createSqliteDatabase()`, runs migrations, and passes the resulting `Database` to `createApp`.
+
+**Tests (better-sqlite3 in-memory):** `createTestDatabase()` in `src/server/db/test-utils.ts` opens an in-memory database with the same pragmas, then runs the migration SQL file with `IF NOT EXISTS` guards for idempotency.
 
 ### 4.3 Leaderboard query
 
@@ -213,7 +262,7 @@ export type AppType = ReturnType<typeof createApp>
 - `DELETE /api/pull-requests/:id` - soft delete, any member.
 - `POST /api/pull-requests/:id/assignments` `{ role }` - self-assign; rejects the poster; idempotent if already assigned.
 - `DELETE /api/assignments/:assignmentId` - allowed for the assignee (remove me) or the PR poster (clear). Credit survives.
-- `POST /api/assignments/:assignmentId/completion` - assignee marks done; writes an assignment row update **and** a `completions` row in one transaction.
+- `POST /api/assignments/:assignmentId/completion` - assignee marks done; writes an assignment row update **and** a `completions` row.
 - `DELETE /api/assignments/:assignmentId/completion` - assignee undoes a mistaken "done"; clears `completed_at` and deletes the linked credit row.
 - `GET /api/leaderboard` - `{ reviews: LeaderboardRow[], acceptance: LeaderboardRow[] }`.
 
@@ -237,12 +286,12 @@ Codes: `unknown_member`, `name_taken`, `invalid_pr_url`, `duplicate_pr`, `not_fo
 sequenceDiagram
     participant R as Reviewer
     participant API as Hono /api
-    participant DB as SQLite
+    participant DB as D1
     participant P as Poster
     R->>API: POST /pull-requests/:id/assignments {role:"review"}
     API->>DB: insert assignments (unique per pr+member+role)
     R->>API: POST /assignments/:aid/completion
-    API->>DB: tx: set completed_at + insert completions
+    API->>DB: update completed_at + insert completions
     Note over DB: credit is now permanent
     P->>API: DELETE /assignments/:aid  (PR changed, needs a fresh look)
     API->>DB: delete assignment; completions.assignment_id -> NULL
@@ -261,7 +310,7 @@ flowchart TD
     B --> G["cannot be picked as an identity or assigned"]
 ```
 
-Any multi-statement operation like this runs inside a single `better-sqlite3` transaction.
+Individual statements are run sequentially without an explicit transaction. This is safe because: (a) SQLite guarantees individual statement atomicity, (b) Workers isolate requests so there is no concurrent writer, and (c) `better-sqlite3`'s Drizzle adapter rejects async transaction callbacks while D1 requires them, making a shared transaction API impractical.
 
 ## 7. Frontend architecture
 
@@ -286,28 +335,42 @@ Any multi-statement operation like this runs inside a single `better-sqlite3` tr
 
 ## 9. Configuration
 
-- `PORT` (default `8787`), `DB_FILE` (default `./data/app.db`), `STATIC_DIR` (default `./dist/client`), `NODE_ENV`.
-- No secrets, so no `.env` is required to run; a `.env.example` documents the knobs.
+- `wrangler.jsonc`: Worker entry (`main`), D1 binding (`DB`), compatibility flags (`nodejs_compat`), assets directory.
+- No secrets, so no `.env` is required to run; a `.env.example` documents the knobs for local development.
+- D1 database ID is set via `wrangler.jsonc`; for local development use `wrangler d1 migrations apply` and `wrangler d1 execute` (or the seed script).
 
 ## 10. Build and run
 
-- `pnpm dev` - Vite on 5173 and `tsx watch` on the server, concurrently.
-- `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:seed` - drizzle-kit plus a seed script with a few members and PRs.
-- `pnpm build` - `vite build` to `dist/client` and `tsc -p tsconfig.server.json` to `dist/server`.
-- `pnpm start` - runs migrations, then serves `/api` and `dist/client` from one process.
-- `pnpm test`, `pnpm lint`, `pnpm typecheck`.
+### Cloudflare Workers
 
-In production the server mounts `serveStatic` for `dist/client` and falls back to `index.html` for unknown non-`/api` paths, with a JSON `not_found` envelope for unknown `/api` routes. The static mount is wired in `src/server/index.ts`, outside `createApp`, so the API-only `AppType` is unchanged and tests keep exercising `app.request()` without touching disk.
+- `pnpm dev` - Cloudflare Vite plugin runs the Worker in workerd with HMR for the React frontend.
+- `pnpm build` - Vite builds the Worker bundle and static assets to `dist/`.
+- `pnpm preview` - previews the production build locally via wrangler.
+- `pnpm db:generate` - drizzle-kit generates SQL migrations.
+- `pnpm db:migrate:local` / `pnpm db:migrate:remote` - applies D1 migrations via wrangler.
+- `pnpm db:seed:local` - seeds the local D1 database.
+- `pnpm deploy` - deploys to Cloudflare (requires `wrangler login`).
 
-A `Dockerfile` produces a production image with the database on a mounted volume; a systemd unit and pm2 recipe are documented in the `README.md` for running on a small internal box.
+### Node.js (VPS / local)
+
+- `pnpm dev:node` - runs the Node.js server with `tsx watch` (auto-reload), file-based SQLite at `./data/app.db`.
+- `pnpm build && pnpm start:node` - builds the client, then runs the production Node.js server.
+- Database migrations run automatically on startup. No separate migration command needed.
+- Seed: `DB_FILE=./data/app.db pnpm db:seed:local` seeds the file database.
+
+### Common
+
+- `pnpm test` - Vitest.
+- `pnpm lint` - ESLint.
+- `pnpm typecheck` - `tsc --noEmit` for client and server projects.
 
 ## 11. Testing strategy
 
-- **Service and route tests (the bulk).** Vitest with a fresh `:memory:` database per test file, migrations applied in `beforeEach`, exercised through `app.request()`. These cover the rules that matter: poster cannot self-assign; clearing an assignment preserves credit; removing a member drops assignments and preserves credit; leaderboard excludes deleted PRs; duplicate URL rejected; requirement changes are poster-only; undo-done removes exactly one credit row.
+- **Service and route tests (the bulk).** Vitest with a fresh `:memory:` `better-sqlite3` database per test file, migrations applied in `beforeEach`, exercised through `app.request()`. These cover the rules that matter: poster cannot self-assign; clearing an assignment preserves credit; removing a member drops assignments and preserves credit; leaderboard excludes deleted PRs; duplicate URL rejected; requirement changes are poster-only; undo-done removes exactly one credit row.
 - **Unit tests** for `parseGitHubPrUrl` (valid forms, weird suffixes, non-PR URLs) and for the status/ranking derivation.
 - **Component tests** for `IdentityGate` and `PrCard` permission rendering with Testing Library, running under jsdom (per-file `@vitest-environment jsdom`) with vitest `globals` enabled and a shared `src/client/test/setup.ts` that registers the jest-dom matchers and the DOM APIs jsdom lacks (`ResizeObserver`, `scrollIntoView`).
 - **Manual smoke checklist** per phase, in [implementation-plan.md](implementation-plan.md); two browser profiles side by side to verify polling.
 
 ## 12. Security posture
 
-State it plainly: there is **no authentication**. Anyone who can reach the app can act as anyone, delete any PR post, or remove any member. That is acceptable only because it is an internal tool on a trusted network, and it is what the confirmed identity decision asks for. Mitigations that are in scope: destructive actions require confirmation, nothing is truly destroyed at the database level (soft deletes plus an append-only ledger), and the database is one file that is trivial to back up. If it ever needs to face the internet, the migration path is to put real sessions behind the existing `actor` middleware - the one place identity is resolved.
+State it plainly: there is **no authentication**. Anyone who can reach the app can act as anyone, delete any PR post, or remove any member. That is acceptable only because it is an internal tool on a trusted network, and it is what the confirmed identity decision asks for. Mitigations that are in scope: destructive actions require confirmation, nothing is truly destroyed at the database level (soft deletes plus an append-only ledger), and the database can be backed up via file copy (Node.js) or `wrangler d1 export` (Cloudflare). If it ever needs to face the internet, the migration path is to put real sessions behind the existing `actor` middleware - the one place identity is resolved.
