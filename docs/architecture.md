@@ -335,7 +335,7 @@ Individual statements are run sequentially without an explicit transaction. This
 
 ## 9. Configuration
 
-- `wrangler.jsonc`: Worker entry (`main`), D1 binding (`DB`), compatibility flags (`nodejs_compat`), assets directory.
+- `wrangler.jsonc`: Worker entry (`main`), D1 binding (`DB`), compatibility flags (`nodejs_compat`), assets directory (`dist/client` via an `ASSETS` binding with SPA fallback for unknown routes).
 - No secrets, so no `.env` is required to run; a `.env.example` documents the knobs for local development.
 - D1 database ID is set via `wrangler.jsonc`; for local development use `wrangler d1 migrations apply` and `wrangler d1 execute` (or the seed script).
 
