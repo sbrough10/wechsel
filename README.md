@@ -88,6 +88,8 @@ pnpm start:node
 The server starts on `http://localhost:8787`. Migrations run automatically on
 startup. The SQLite database is created at `./data/app.db`.
 
+**NOTE:** You will have create an subdirectories housing `app.db` manually before starting the app.
+
 ### Configuration
 
 All variables are optional; defaults are shown:
@@ -130,11 +132,50 @@ Then `systemctl enable --now wechsel`.
 
 ### pm2
 
+At the root of the cloned repo, create an ecosystem file (e.g. `ecosystem.config.js`) that runs the server.
+The example file also include configuration of an ngrok tunnel for testing.
+
+```js
+module.exports = {
+  apps: [
+    {
+      name: 'wechsel',
+      script: 'dist/server/server/platforms/node.js',
+      env: {
+        PORT: 8787,
+        DB_FILE: 'data/app.db',
+      },
+    },
+    {
+      name: 'wechsel-ngrok',
+      script: 'ngrok',
+      args: 'http 8787',
+      interpreter: 'none',
+    },
+  ],
+};
+```
+
+Then start, save, and (optionally) make both survive reboots:
+
 ```sh
-pm2 start dist/server/server/platforms/node.js --name wechsel --cwd /opt/wechsel
+cd 
+pm2 start ecosystem.config.js
 pm2 save
 pm2 startup   # follow the printed command so it survives reboots
 ```
+
+Both processes are managed together, so `pm2 stop` (or `pm2 stop all`) stops
+the server and the tunnel. To stop just the pair, use `pm2 stop wechsel
+wechsel-ngrok`. Find the public URL with `ngrok status` (or the ngrok
+dashboard).
+
+> **Warning:** ngrok exposes the app to the public internet. There is no
+> authentication in Wechsel (see the [security warning](#security-warning)
+> above), so only do this on a trusted network or add auth in front first.
+
+
+**NOTE:** You will have create an subdirectories housing `app.db` manually before starting the app.
 
 ### Docker
 
